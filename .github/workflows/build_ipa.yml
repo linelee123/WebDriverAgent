@@ -1,0 +1,36 @@
+name: Build Unsigned WDA IPA
+on:
+  workflow_dispatch: # 允许手动点击按钮触发
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout Source
+        uses: actions/checkout@v4
+
+      - name: Build WebDriverAgent for Real Device (No Sign)
+        run: |
+          xcodebuild build-for-testing \
+            -project WebDriverAgent.xcodeproj \
+            -scheme WebDriverAgentRunner \
+            -destination 'generic/platform=iOS' \
+            -configuration Release \
+            -derivedDataPath ./build \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Package into WDA.ipa
+        run: |
+          mkdir -p Payload
+          cp -r ./build/Build/Products/Release-iphoneos/WebDriverAgentRunner-Runner.app Payload/
+          # 移除 PlugIns 里的冗余签名文件以确保 Sideloadly 100% 重签成功
+          rm -rf Payload/WebDriverAgentRunner-Runner.app/PlugIns/*.xctest/_CodeSignature
+          zip -r -9 WDA-latest.ipa Payload
+
+      - name: Upload IPA Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: WDA-latest-ipa
+          path: WDA-latest.ipa
